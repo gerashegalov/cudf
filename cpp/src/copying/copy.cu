@@ -181,9 +181,8 @@ class logical_not {
 };
 
 /**
- * @brief Implementation of copy_if_else() with gather()/scatter().
- *
- * Currently supports only nested-type column_views. Scalars are not supported.
+ * @brief Implementation of copy_if_else() with gather()/scatter() for
+ * nested-type column_views and scalars.
  */
 template <typename Left, typename Right, typename Filter>
 std::unique_ptr<column> scatter_gather_based_if_else(Left const& lhs,
@@ -201,15 +200,6 @@ std::unique_ptr<column> scatter_gather_based_if_else(Left const& lhs,
                                                  thrust::make_counting_iterator(size_type{size}),
                                                  scatter_map_rhs.begin(),
                                                  logical_not{is_left});
-
-    // Gather source = [a,b,c,d,e,f,g]
-    // Gather map    = [ 4, 3 ]
-    // cudf::gather(source, map) == [ e, d ]
-
-    // Scatter source = [d,e] // [a,b,c,d,e,f,g]
-    // Scatter map    = [3,4]
-    // Scatter target = [aa,bb,cc,dd,ee,ff,gg,hh,ii]
-    // cudf::scatter(source, map, target) == [aa,bb,cc,d,e,ff,gg,hh,ii]
 
     auto const scatter_src_rhs = cudf::detail::gather(table_view{std::vector<column_view>{rhs}},
                                                       scatter_map_rhs.begin(),
@@ -231,25 +221,37 @@ std::unique_ptr<column> scatter_gather_based_if_else(Left const& lhs,
 
   if constexpr (std::is_same<Left, cudf::scalar>::value &&
                 std::is_same<Right, cudf::scalar>::value) {
-    auto lhs_col = cudf::make_column_from_scalar(lhs, size, stream, mr);
     auto rhs_col = cudf::make_column_from_scalar(rhs, size, stream, mr);
-
-    return scatter_gather_based_if_else(
-      lhs_col->view(), rhs_col->view(), size, is_left, stream, mr);
+    return scatter_gather_based_if_else(lhs, rhs_col->view(), size, is_left, stream, mr);
   }
 
   if constexpr (std::is_same<Left, cudf::scalar>::value &&
                 std::is_same<Right, cudf::column_view>::value) {
-    auto lhs_col = cudf::make_column_from_scalar(lhs, size, stream, mr);
+    auto scatter_map = rmm::device_uvector<size_type>{static_cast<std::size_t>(size), stream};
+    auto const scatter_map_end = thrust::copy_if(rmm::exec_policy(stream),
+                                                 thrust::make_counting_iterator(size_type{0}),
+                                                 thrust::make_counting_iterator(size_type{size}),
+                                                 scatter_map.begin(),
+                                                 is_left);
 
-    return scatter_gather_based_if_else(lhs_col->view(), rhs, size, is_left, stream, mr);
+    auto const scatter_map_size  = scatter_map_end - scatter_map.begin();
+    auto scatter_source          = std::vector<std::reference_wrapper<const scalar>>{std::ref(lhs)};
+    auto scatter_map_column_view = cudf::column_view{cudf::data_type{cudf::type_id::INT32},
+                                                     static_cast<cudf::size_type>(scatter_map_size),
+                                                     scatter_map.begin()};
+
+    auto result = cudf::scatter(scatter_source,
+                                scatter_map_column_view,
+                                table_view{std::vector<column_view>{rhs}},
+                                false,
+                                mr);
+
+    return std::move(result->release()[0]);
   }
 
   if constexpr (std::is_same<Left, cudf::column_view>::value &&
                 std::is_same<Right, cudf::scalar>::value) {
-    auto rhs_col = cudf::make_column_from_scalar(rhs, size, stream, mr);
-
-    return scatter_gather_based_if_else(lhs, rhs_col->view(), size, is_left, stream, mr);
+    return scatter_gather_based_if_else(rhs, lhs, size, logical_not{is_left}, stream, mr);
   }
 
   // Bail out for unsupported types.
