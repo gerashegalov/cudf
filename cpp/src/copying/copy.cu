@@ -206,26 +206,37 @@ std::unique_ptr<column> scatter_gather_based_if_else(Left const& lhs,
   auto const [rhs_col, rhs_view] = get_column_and_view(rhs, size, stream, mr);
 
   auto scatter_map = rmm::device_uvector<size_type>{static_cast<std::size_t>(size), stream};
-  auto const scatter_map_end = thrust::copy_if(rmm::exec_policy(stream),
-                                               thrust::make_counting_iterator(size_type{0}),
-                                               thrust::make_counting_iterator(size_type{size}),
-                                               scatter_map.begin(),
-                                               is_left);
+  auto const scatter_map_ends =
+    thrust::partition_copy(rmm::exec_policy(stream),
+                           thrust::make_counting_iterator(size_type{0}),
+                           thrust::make_counting_iterator(size_type{size}),
+                           scatter_map.begin(),
+                           std::make_reverse_iterator(scatter_map.end()),
+                           is_left);
 
-  auto const scatter_src_lhs = cudf::detail::gather(table_view{std::vector<column_view>{lhs_view}},
-                                                    scatter_map.begin(),
-                                                    scatter_map_end,
-                                                    out_of_bounds_policy::DONT_CHECK,
-                                                    stream);
+  auto num_lhs_rows = scatter_map_ends.first - scatter_map.begin();
+  auto num_rhs_rows = scatter_map.end() - scatter_map_ends.first;
 
-  auto result = cudf::detail::scatter(
-    table_view{std::vector<column_view>{scatter_src_lhs->get_column(0).view()}},
-    scatter_map.begin(),
-    scatter_map_end,
-    table_view{std::vector<column_view>{rhs_view}},
-    false,
-    stream,
-    mr);
+  // scatter smaller column
+  auto const [src_view, dst_view, scatter_map_begin, scatter_map_end] =
+    num_lhs_rows < num_rhs_rows
+      ? std::make_tuple(lhs_view, rhs_view, scatter_map.begin(), scatter_map_ends.first)
+      : std::make_tuple(rhs_view, lhs_view, scatter_map_ends.first, scatter_map.end());
+
+  auto const scatter_src = cudf::detail::gather(table_view{std::vector<column_view>{src_view}},
+                                                scatter_map_begin,
+                                                scatter_map_end,
+                                                out_of_bounds_policy::DONT_CHECK,
+                                                stream);
+
+  auto result =
+    cudf::detail::scatter(table_view{std::vector<column_view>{scatter_src->get_column(0).view()}},
+                          scatter_map_begin,
+                          scatter_map_end,
+                          table_view{std::vector<column_view>{dst_view}},
+                          false,
+                          stream,
+                          mr);
 
   return std::move(result->release()[0]);
 }
