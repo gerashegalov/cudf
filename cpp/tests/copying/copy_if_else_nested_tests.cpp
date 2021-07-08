@@ -190,7 +190,7 @@ TYPED_TEST(TypedCopyIfElseNestedTest, ScalarStructBothValid)
   auto rhs_child_ints    = ints{{22}, null_at(0)};
   auto rhs_child_strings = strings{"22"};
   auto rhs_children      = std::vector<column_view>{{rhs_child_ints, rhs_child_strings}};
-  auto rhs_scalar        = cudf::make_struct_scalar(table_view{});
+  auto rhs_scalar        = cudf::make_struct_scalar(rhs_children);
 
   auto selector_column = bools{1, 1, 0, 1, 1, 0, 1}.release();
 
@@ -443,9 +443,6 @@ TYPED_TEST(TypedCopyIfElseNestedTest, ScalarListBothInvalid)
                     .release();
 
   auto result = copy_if_else(lhs_scalar, rhs_scalar, selector_column->view());
-  cudf::test::print(*result);
-
-  cudf::test::print(expected->view());
 
   CUDF_TEST_EXPECT_COLUMNS_EQUIVALENT(expected->view(), result->view());
 }
