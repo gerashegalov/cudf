@@ -17,7 +17,14 @@ function(find_and_configure_rmm)
   include(${rapids-cmake-dir}/cpm/rmm.cmake)
 
   # Find or install RMM
-  rapids_cpm_rmm(BUILD_EXPORT_SET cudf-exports INSTALL_EXPORT_SET cudf-exports)
+  rapids_cpm_find(
+    Rmm 22.08.0
+    BUILD_EXPORT_SET cudf-exports
+    INSTALL_EXPORT_SET cudf-exports
+    GIT_REPOSITORY  https://github.com/gerashegalov/rmm.git
+    GIT_TAG         gerashegalov/no-throw-cudaErrorInvalidValue
+    GIT_SHALLOW     TRUE
+ )
 
 endfunction()
 

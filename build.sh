@@ -117,11 +117,11 @@ function buildLibCudfJniInDocker {
     local workspaceCcacheDir="$workspaceDir/.ccache"
     mkdir -p "$CUDF_JAR_JAVA_BUILD_DIR/libcudf-cmake-build"
     mkdir -p "$HOME/.ccache" "$HOME/.m2"
-    nvidia-docker build \
+    docker build \
         -f java/ci/Dockerfile.centos7 \
         --build-arg CUDA_VERSION=${cudaVersion} \
         -t $imageName .
-    nvidia-docker run -it -u $(id -u):$(id -g) --rm \
+    docker run --gpus all -it -u $(id -u):$(id -g) --rm \
         -e PARALLEL_LEVEL \
         -e CCACHE_DISABLE \
         -e CCACHE_DIR="$workspaceCcacheDir" \
