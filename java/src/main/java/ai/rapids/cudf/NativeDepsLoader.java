@@ -18,6 +18,7 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -459,7 +460,7 @@ public class NativeDepsLoader {
       try {
         Files.move(temporaryPath, destinationPath,
             StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-      } catch (AtomicMoveNotSupportedException e) {
+      } catch (AtomicMoveNotSupportedException | FileAlreadyExistsException e) {
         Files.move(temporaryPath, destinationPath, StandardCopyOption.REPLACE_EXISTING);
       }
       moved = true;

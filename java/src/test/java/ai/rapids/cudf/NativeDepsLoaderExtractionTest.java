@@ -97,12 +97,13 @@ class NativeDepsLoaderExtractionTest {
   }
 
   @Test
-  void extractsResourceToRequestedDestination() throws IOException {
+  void replacesExistingDestination() throws IOException {
     String baseName = "destinationtest";
     byte[] expected = "requested destination contents".getBytes(StandardCharsets.UTF_8);
     writeChunkedResource(baseName, expected, 8, "1", null, null);
     Path destinationDirectory = Files.createTempDirectory("native-dep-destination");
     Path destination = destinationDirectory.resolve(System.mapLibraryName(baseName));
+    Files.write(destination, "existing contents".getBytes(StandardCharsets.UTF_8));
     try {
       File extracted = NativeDepsLoader.extractNativeDep(
           TEST_OS, TEST_ARCH, baseName, destination.toFile());
