@@ -289,48 +289,57 @@ public class NativeDepsLoader {
     Map<String, long[]> timings = libLogLoadTiming ? new ConcurrentHashMap<>() : null;
 
     ExecutorService executor = Executors.newCachedThreadPool();
-    List<List<Future<File>>> allFileFutures = new ArrayList<>();
+    try {
+      List<List<Future<File>>> allFileFutures = new ArrayList<>();
 
-    // Start unpacking and creating the temporary files for each dependency.
-    // Unpacking a dependency does not depend on stage order.
-    for (String[] stageDependencies : loadOrder) {
-      List<Future<File>> stageFileFutures = new ArrayList<>();
-      allFileFutures.add(stageFileFutures);
-      for (String name : stageDependencies) {
-        stageFileFutures.add(executor.submit(() -> createFileTimed(os, arch, name, timings)));
-      }
-    }
-
-    List<Future<?>> loadCompletionFutures = new ArrayList<>();
-
-    // Proceed stage-by-stage waiting for the dependency file to have been
-    // produced then submit them to the thread pool to be loaded.
-    for (int i = 0; i < allFileFutures.size(); i++) {
-      List<Future<File>> stageFileFutures = allFileFutures.get(i);
-      String[] stageNames = loadOrder[i];
-      // Submit all dependencies in the stage to be loaded in parallel
-      loadCompletionFutures.clear();
-      for (int j = 0; j < stageFileFutures.size(); j++) {
-        Future<File> fileFuture = stageFileFutures.get(j);
-        String name = stageNames[j];
-        loadCompletionFutures.add(
-            executor.submit(() -> loadDepTimed(fileFuture, preserveDeps, name, timings)));
-      }
-
-      // Wait for all dependencies in this stage to have been loaded
-      for (Future<?> loadCompletionFuture : loadCompletionFutures) {
-        try {
-          loadCompletionFuture.get();
-        } catch (ExecutionException | InterruptedException e) {
-          throw new IOException("Error loading dependencies", e);
+      // Start unpacking and creating the temporary files for each dependency.
+      // Unpacking a dependency does not depend on stage order.
+      for (String[] stageDependencies : loadOrder) {
+        List<Future<File>> stageFileFutures = new ArrayList<>();
+        allFileFutures.add(stageFileFutures);
+        for (String name : stageDependencies) {
+          stageFileFutures.add(executor.submit(() -> createFileTimed(os, arch, name, timings)));
         }
       }
-    }
 
-    executor.shutdownNow();
+      List<Future<?>> loadCompletionFutures = new ArrayList<>();
+
+      // Proceed stage-by-stage waiting for the dependency file to have been
+      // produced then submit them to the thread pool to be loaded.
+      for (int i = 0; i < allFileFutures.size(); i++) {
+        List<Future<File>> stageFileFutures = allFileFutures.get(i);
+        String[] stageNames = loadOrder[i];
+        // Submit all dependencies in the stage to be loaded in parallel
+        loadCompletionFutures.clear();
+        for (int j = 0; j < stageFileFutures.size(); j++) {
+          Future<File> fileFuture = stageFileFutures.get(j);
+          String name = stageNames[j];
+          loadCompletionFutures.add(
+              executor.submit(() -> loadDepTimed(fileFuture, preserveDeps, name, timings)));
+        }
+
+        // Wait for all dependencies in this stage to have been loaded
+        for (Future<?> loadCompletionFuture : loadCompletionFutures) {
+          awaitLoadCompletion(loadCompletionFuture);
+        }
+      }
+    } finally {
+      shutdownAndAwait(executor);
+    }
 
     if (libLogLoadTiming) {
       logLoadSummary(loadOrder, timings, System.currentTimeMillis() - t0);
+    }
+  }
+
+  static void awaitLoadCompletion(Future<?> loadCompletionFuture) throws IOException {
+    try {
+      loadCompletionFuture.get();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Interrupted while loading dependencies", e);
+    } catch (ExecutionException e) {
+      throw new IOException("Error loading dependencies", e);
     }
   }
 
@@ -384,7 +393,10 @@ public class NativeDepsLoader {
     File path;
     try {
       path = fileFuture.get();
-    } catch (ExecutionException | InterruptedException e) {
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted while loading dependencies", e);
+    } catch (ExecutionException e) {
       throw new RuntimeException("Error loading dependencies", e);
     }
     long t0 = System.currentTimeMillis();
