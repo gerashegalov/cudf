@@ -45,6 +45,7 @@ import java.util.zip.CRC32;
  */
 public class NativeDepsLoader {
   private static final int COPY_BUFFER_SIZE = 1024 * 1024;
+  private static final long EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 10;
   // Positional extraction uses one copy buffer per worker.
   private static final int MAX_CONCURRENT_CHUNK_READS =
       Math.max(1, Math.min(12, Runtime.getRuntime().availableProcessors()));
@@ -624,12 +625,20 @@ public class NativeDepsLoader {
   private static void shutdownAndAwait(ExecutorService executor) {
     executor.shutdownNow();
     boolean interrupted = Thread.interrupted();
-    while (!executor.isTerminated()) {
+    long deadline = System.nanoTime() +
+        TimeUnit.SECONDS.toNanos(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS);
+    long remainingNanos = deadline - System.nanoTime();
+    while (!executor.isTerminated() && remainingNanos > 0) {
       try {
-        executor.awaitTermination(1, TimeUnit.SECONDS);
+        executor.awaitTermination(remainingNanos, TimeUnit.NANOSECONDS);
       } catch (InterruptedException e) {
         interrupted = true;
       }
+      remainingNanos = deadline - System.nanoTime();
+    }
+    if (!executor.isTerminated()) {
+      Log.warn("Timed out after {} seconds waiting for native dependency tasks to stop",
+          EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS);
     }
     if (interrupted) {
       Thread.currentThread().interrupt();
