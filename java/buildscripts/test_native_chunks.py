@@ -11,6 +11,19 @@ import native_chunks
 
 
 class NativeChunkPackagingTest(unittest.TestCase):
+    def test_replaces_stale_chunks_after_source_recopy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            library = Path(directory) / "libcudf.so"
+            library.write_bytes(b"a" * 2048)
+            self.assertTrue(native_chunks.produce(library, 0, 1024, 9, 2))
+            old_chunk = Path(str(library) + ".chunks/00000").read_bytes()
+
+            library.write_bytes(b"b" * 2048)
+            self.assertTrue(native_chunks.produce(library, 0, 1024, 9, 2))
+            new_chunk = Path(str(library) + ".chunks/00000").read_bytes()
+            self.assertNotEqual(old_chunk, new_chunk)
+            self.assertFalse(library.exists())
+
     def test_round_trip_and_corruption(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
