@@ -92,8 +92,8 @@ bindings with Maven.
 The Java build splits `libcudf.so` into 32 MiB chunks when it is at least 256 MiB.
 Each chunk is compressed with zstd level 9 and stored in the JAR without ZIP
 compression. The JAR contains a chunk manifest instead of the original
-`libcudf.so` entry. Building this JAR requires the `zstd` command; loading it
-requires the `zstd-jni` Maven dependency declared by this module. The loader
+`libcudf.so` entry. The Maven build uses Jython and `zstd-jni` to create and
+verify the chunks; loading them uses the same `zstd-jni` dependency. The loader
 also accepts older JARs with ordinary native libraries or uncompressed chunks,
 and the `ai.rapids.cudf.lib-native-dir` override still works.
 

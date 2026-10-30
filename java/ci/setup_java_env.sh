@@ -23,7 +23,7 @@ if ! type rapids-logger >/dev/null 2>&1; then
 fi
 
 # JDK 8 for javac; JDK 17 for the -Pjavadoc-jdk17 Maven profile.
-dnf install -y maven java-1.8.0-openjdk-devel java-17-openjdk-devel zstd
+dnf install -y maven java-1.8.0-openjdk-devel java-17-openjdk-devel
 
 # ci-wheel images do not ship ninja or a modern cmake. Install both from PyPI.
 if command -v rapids-pip-retry >/dev/null 2>&1; then
