@@ -5,6 +5,7 @@
 
 import os
 import shutil
+import stat
 import tempfile
 import unittest
 import zipfile
@@ -71,6 +72,7 @@ class NativeChunkPackagingTest(unittest.TestCase):
                     path = os.path.join(directory, name)
                     if path != archive:
                         jar.write(path, os.path.relpath(path, self.root))
+        os.chmod(archive, 0o644)
         self.assertEqual(4, native_chunks.store(self.root, archive))
         self.assertEqual(4, native_chunks.verify(archive))
         self.assertEqual(4, native_chunks.store(self.root, archive))
@@ -79,6 +81,7 @@ class NativeChunkPackagingTest(unittest.TestCase):
             self.assertEqual(len(names), len(set(names)))
             self.assertEqual("untouched", jar.read("other.txt"))
             self.assertEqual("build metadata", jar.comment)
+            self.assertEqual(0o644, stat.S_IMODE(os.stat(archive).st_mode))
             self.assertEqual(
                 zipfile.ZIP_DEFLATED, jar.getinfo("other.txt").compress_type
             )
