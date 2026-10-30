@@ -57,10 +57,6 @@ def produce(
     workers=12,
 ):
     source = Path(source)
-    if not source.is_file() or source.stat().st_size < minimum_size:
-        return False
-    source_stat = source.stat()
-    size = source_stat.st_size
     chunks = Path(str(source) + ".chunks")
     manifest = Path(str(source) + ".chunks.properties")
     # Maven may copy a rebuilt library over the previous output while leaving
@@ -68,6 +64,10 @@ def produce(
     shutil.rmtree(chunks, ignore_errors=True)
     if manifest.exists():
         manifest.unlink()
+    if not source.is_file() or source.stat().st_size < minimum_size:
+        return False
+    source_stat = source.stat()
+    size = source_stat.st_size
     temporary = Path(
         tempfile.mkdtemp(
             prefix=source.name + ".chunks.tmp-", dir=str(source.parent)
