@@ -1,14 +1,11 @@
-# Copyright (c) 2026, NVIDIA CORPORATION.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#     http://www.apache.org/licenses/LICENSE-2.0
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 
-import tempfile
-from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 import zipfile
+from pathlib import Path
 
 import native_chunks
 
@@ -19,9 +16,11 @@ class NativeChunkPackagingTest(unittest.TestCase):
             root = Path(directory)
             library = root / "amd64/Linux/libcudf.so"
             library.parent.mkdir(parents=True)
-            contents = (b"0123456789abcdef" * 200000)
+            contents = b"0123456789abcdef" * 200000
             library.write_bytes(contents)
-            self.assertTrue(native_chunks.produce(library, 0, 1024 * 1024, 9, 2))
+            self.assertTrue(
+                native_chunks.produce(library, 0, 1024 * 1024, 9, 2)
+            )
             self.assertFalse(library.exists())
             archive = root / "test.jar"
             with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as jar:
