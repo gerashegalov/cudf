@@ -5,9 +5,9 @@
 
 import os
 import shutil
-import subprocess
 import tempfile
 import unittest
+import zipfile
 
 import native_chunks
 from com.github.luben.zstd import ZstdIOException
@@ -63,9 +63,25 @@ class NativeChunkPackagingTest(unittest.TestCase):
         self.assertTrue(native_chunks.produce(library, 0, 1024 * 1024, 9, 2))
         self.assertFalse(os.path.exists(library))
         archive = os.path.join(self.root, "test.jar")
-        subprocess.check_call(["jar", "cf", archive, "-C", self.root, "."])
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as jar:
+            jar.comment = "build metadata"
+            jar.writestr("other.txt", "untouched")
+            for directory, unused_dirs, names in os.walk(self.root):
+                for name in names:
+                    path = os.path.join(directory, name)
+                    if path != archive:
+                        jar.write(path, os.path.relpath(path, self.root))
         self.assertEqual(4, native_chunks.store(self.root, archive))
         self.assertEqual(4, native_chunks.verify(archive))
+        self.assertEqual(4, native_chunks.store(self.root, archive))
+        with zipfile.ZipFile(archive) as jar:
+            names = jar.namelist()
+            self.assertEqual(len(names), len(set(names)))
+            self.assertEqual("untouched", jar.read("other.txt"))
+            self.assertEqual("build metadata", jar.comment)
+            self.assertEqual(
+                zipfile.ZIP_DEFLATED, jar.getinfo("other.txt").compress_type
+            )
 
         write(library + ".chunks/00000", b"broken")
         native_chunks.store(self.root, archive)
