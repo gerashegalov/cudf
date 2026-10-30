@@ -29,7 +29,10 @@ def _file_state(path):
     if modified is None:
         from java.nio.file import Files, Paths
         from java.util.concurrent import TimeUnit
-        modified = Files.getLastModifiedTime(Paths.get(path)).to(TimeUnit.NANOSECONDS)
+
+        modified = Files.getLastModifiedTime(Paths.get(path)).to(
+            TimeUnit.NANOSECONDS
+        )
     return stat.st_size, modified
 
 
@@ -46,7 +49,9 @@ def _compress(source, output, offset, length, level):
             while length:
                 data = input_file.read(min(1024 * 1024, length))
                 if not data:
-                    raise IOError("Native library changed during chunking: %s" % source)
+                    raise IOError(
+                        "Native library changed during chunking: %s" % source
+                    )
                 process.stdin.write(data)
                 crc = zlib.crc32(data, crc)
                 length -= len(data)
@@ -135,7 +140,9 @@ def produce(
             source, temporary, size, chunk_size, level, workers
         )
         if _file_state(source) != (size, modified):
-            raise IOError("Native library changed during chunking: %s" % source)
+            raise IOError(
+                "Native library changed during chunking: %s" % source
+            )
         lines = [
             "format.version=1",
             "library.size=%d" % size,
@@ -188,13 +195,14 @@ def store(root, archive):
                 chunk = os.path.join(library + ".chunks", "%05d" % index)
                 if not os.path.isfile(chunk):
                     raise IOError("Missing native chunk %s" % chunk)
-                entries.append(os.path.relpath(chunk, root).replace(os.sep, "/"))
+                entries.append(
+                    os.path.relpath(chunk, root).replace(os.sep, "/")
+                )
     if not entries:
         return 0
-    subprocess.check_call(
-        ["jar", "u0f", os.path.abspath(archive)] + entries,
-        cwd=root,
-    )
+    command = ["jar", "u0f", os.path.abspath(archive)]
+    command.extend(entries)
+    subprocess.check_call(command, cwd=root)
     with zipfile.ZipFile(archive) as jar:
         for name in entries:
             if jar.getinfo(name).compress_type != zipfile.ZIP_STORED:
@@ -213,7 +221,9 @@ def verify(archive):
             if properties.get("chunk.compression") != "zstd":
                 continue
             if properties.get("format.version") != "1":
-                raise RuntimeError("Unsupported chunk format: %s" % manifest_name)
+                raise RuntimeError(
+                    "Unsupported chunk format: %s" % manifest_name
+                )
             library_name = manifest_name[: -len(".chunks.properties")]
             if library_name in names:
                 raise RuntimeError(
@@ -280,10 +290,14 @@ def main():
             parser.error("Invalid chunk size or worker count")
         if args.require_loader is not None:
             if not os.path.isfile(args.require_loader):
-                parser.error("cuDF submodule must contain the zstd NativeDepsLoader")
+                parser.error(
+                    "cuDF submodule must contain the zstd NativeDepsLoader"
+                )
             with open(args.require_loader) as loader:
                 if "CHUNK_COMPRESSION_KEY" not in loader.read():
-                    parser.error("cuDF submodule must contain the zstd NativeDepsLoader")
+                    parser.error(
+                        "cuDF submodule must contain the zstd NativeDepsLoader"
+                    )
         sys.stdout.write(
             "Chunked native library: %s\n"
             % produce(

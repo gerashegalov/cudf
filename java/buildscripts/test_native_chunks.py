@@ -17,7 +17,9 @@ class NativeChunkPackagingTest(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as directory:
                     library = Path(directory) / "libcudf.so"
                     library.write_bytes(b"a" * 2048)
-                    self.assertTrue(native_chunks.produce(library, 0, 1024, 9, 2))
+                    self.assertTrue(
+                        native_chunks.produce(library, 0, 1024, 9, 2)
+                    )
                     chunks = Path(str(library) + ".chunks")
                     manifest = Path(str(library) + ".chunks.properties")
                     self.assertTrue(chunks.exists())
@@ -25,7 +27,9 @@ class NativeChunkPackagingTest(unittest.TestCase):
 
                     if source_exists:
                         library.write_bytes(b"b" * 1024)
-                    self.assertFalse(native_chunks.produce(library, 2048, 1024, 9, 2))
+                    self.assertFalse(
+                        native_chunks.produce(library, 2048, 1024, 9, 2)
+                    )
                     self.assertEqual(source_exists, library.exists())
                     self.assertFalse(chunks.exists())
                     self.assertFalse(manifest.exists())
