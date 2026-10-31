@@ -18,11 +18,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -45,7 +47,17 @@ class PackagedJarOriginCheck {
   }
 
   @Test
-  void nativeDepUtilRunsWithOnlyPackagedJar() throws Exception {
+  void packagedJarDoesNotEmbedZstdJni() throws Exception {
+    try (JarFile jar = new JarFile(packagedJar().toFile())) {
+      assertFalse(jar.stream().anyMatch(entry ->
+          entry.getName().startsWith("com/github/luben/zstd/")
+              || (entry.getName().startsWith("linux/")
+              && entry.getName().contains("libzstd-jni"))));
+    }
+  }
+
+  @Test
+  void nativeDepUtilRunsWithRuntimeDependency() throws Exception {
     String os = System.getProperty("os.name");
     String arch = System.getProperty("os.arch");
     String baseName = "standalonetest";
@@ -53,11 +65,11 @@ class PackagedJarOriginCheck {
     Path resource = tempDir.resolve(arch).resolve(os).resolve(System.mapLibraryName(baseName));
     Files.createDirectories(resource.getParent());
     Files.write(resource, expected);
-    assertStandaloneExtract(baseName, expected);
+    assertPackagedExtract(baseName, expected);
   }
 
   @Test
-  void nativeDepUtilExtractsZstdChunksWithOnlyPackagedJar() throws Exception {
+  void nativeDepUtilExtractsZstdChunksWithRuntimeDependency() throws Exception {
     String baseName = "standalonezstdtest";
     byte[] expected = "standalone compressed native library"
         .getBytes(StandardCharsets.UTF_8);
@@ -75,10 +87,10 @@ class PackagedJarOriginCheck {
         expected.length, expected.length, crc.getValue());
     Files.write(resource.resolveSibling(resource.getFileName() + ".chunks.properties"),
         manifest.getBytes(StandardCharsets.ISO_8859_1));
-    assertStandaloneExtract(baseName, expected);
+    assertPackagedExtract(baseName, expected);
   }
 
-  private void assertStandaloneExtract(String baseName, byte[] expected) throws Exception {
+  private void assertPackagedExtract(String baseName, byte[] expected) throws Exception {
     Path destination = tempDir.resolve("extracted").resolve(System.mapLibraryName(baseName));
     Files.createDirectories(destination.getParent());
 
@@ -86,7 +98,8 @@ class PackagedJarOriginCheck {
     if (!Files.isExecutable(java)) {
       java = java.resolveSibling("java.exe");
     }
-    String classPath = packagedJar() + File.pathSeparator + tempDir;
+    String classPath = packagedJar() + File.pathSeparator + zstdJniJar()
+        + File.pathSeparator + tempDir;
     Process process = new ProcessBuilder(
         java.toString(),
         "-cp", classPath,
@@ -111,5 +124,14 @@ class PackagedJarOriginCheck {
 
   private static Path packagedJar() throws Exception {
     return Paths.get(System.getProperty("cudf.packaged.jar")).toRealPath();
+  }
+
+  private static Path zstdJniJar() throws Exception {
+    Path jar = Paths.get(Zstd.class.getProtectionDomain().getCodeSource()
+        .getLocation().toURI()).toRealPath();
+    if (!Files.isRegularFile(jar)) {
+      throw new IllegalStateException("zstd-jni must be loaded from its own JAR: " + jar);
+    }
+    return jar;
   }
 }

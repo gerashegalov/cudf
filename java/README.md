@@ -93,11 +93,16 @@ The Java build splits `libcudf.so` into 32 MiB chunks when it is at least 256 Mi
 Each chunk is compressed with zstd level 9 and stored in the JAR without ZIP
 compression. The JAR contains a chunk manifest instead of the original
 `libcudf.so` entry. The Maven build uses Jython and `zstd-jni` to create and
-verify the chunks. The CUDA-classifier JAR embeds the zstd Java classes and the
-native binary for its Linux architecture, so its extraction CLI works with only
-that JAR on the classpath. The loader also accepts older JARs with ordinary
-native libraries or uncompressed chunks,
-and the `ai.rapids.cudf.lib-native-dir` override still works.
+verify the chunks. At runtime, `zstd-jni` is a Maven dependency of the CUDA-classifier
+JAR and must be on the classpath when extracting zstd chunks with the CLI:
+
+```shell script
+java -cp "cudf-<version>-cuda12.jar:zstd-jni-1.5.6-6.jar" \
+  ai.rapids.cudf.NativeDepUtil extract cudf /tmp/libcudf.so
+```
+
+The loader also accepts older JARs with ordinary native libraries or
+uncompressed chunks, and the `ai.rapids.cudf.lib-native-dir` override still works.
 
 ## Per-thread Default Stream
 
