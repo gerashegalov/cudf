@@ -89,12 +89,16 @@ bindings with Maven.
 
 ## Native library packaging
 
-The Java build splits `libcudf.so` into 32 MiB chunks when it is at least 256 MiB.
-Each chunk is compressed with zstd level 9 and stored in the JAR without ZIP
-compression. The JAR contains a chunk manifest instead of the original
-`libcudf.so` entry. The Maven build uses Jython and `zstd-jni` to create and
-verify the chunks. At runtime, `zstd-jni` is a Maven dependency of the CUDA-classifier
-JAR and must be on the classpath when extracting zstd chunks with the CLI:
+By default, the Java JAR contains the conventional `libcudf.so` resource. To
+produce zstd chunks instead, build with `-Pzstd-native-chunks`. This profile
+splits `libcudf.so` into 32 MiB chunks when it is at least 256 MiB. Each chunk
+is compressed with zstd level 9 and stored in the JAR without ZIP compression.
+The JAR then contains a chunk manifest instead of the original `libcudf.so`
+entry. Maven uses Jython and `zstd-jni` to create and verify the chunks.
+
+The optional zstd packaging requires `zstd-jni` at runtime. It is a Maven
+dependency of cuDF Java and must be on the classpath when extracting zstd
+chunks with the CLI:
 
 ```shell script
 java -cp "cudf-<version>-cuda12.jar:zstd-jni-1.5.6-6.jar" \

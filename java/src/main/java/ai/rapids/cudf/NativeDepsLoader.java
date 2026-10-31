@@ -635,7 +635,7 @@ public class NativeDepsLoader {
     long totalBytes = 0;
     try (InputStream resourceStream = resource.openStream();
          InputStream in = zstdCompressed
-             ? new ZstdInputStreamNoFinalizer(resourceStream) : resourceStream) {
+             ? ZstdChunkDecompressor.open(resourceStream) : resourceStream) {
       int read;
       while ((read = in.read(buffer)) != -1) {
         if (read == 0) {
@@ -673,6 +673,13 @@ public class NativeDepsLoader {
       throw new IOException(String.format(Locale.ROOT,
           "Native dependency chunk CRC32 mismatch for %s: expected %08x but extracted %08x",
           resource, expectedCrc32, crc.getValue()));
+    }
+  }
+
+  /** Keep zstd linkage out of the conventional native-resource extraction path. */
+  private static final class ZstdChunkDecompressor {
+    static InputStream open(InputStream source) throws IOException {
+      return new ZstdInputStreamNoFinalizer(source);
     }
   }
 

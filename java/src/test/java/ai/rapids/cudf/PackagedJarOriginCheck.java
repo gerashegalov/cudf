@@ -57,7 +57,7 @@ class PackagedJarOriginCheck {
   }
 
   @Test
-  void nativeDepUtilRunsWithRuntimeDependency() throws Exception {
+  void nativeDepUtilExtractsConventionalWithoutZstdJni() throws Exception {
     String os = System.getProperty("os.name");
     String arch = System.getProperty("os.arch");
     String baseName = "standalonetest";
@@ -65,7 +65,7 @@ class PackagedJarOriginCheck {
     Path resource = tempDir.resolve(arch).resolve(os).resolve(System.mapLibraryName(baseName));
     Files.createDirectories(resource.getParent());
     Files.write(resource, expected);
-    assertPackagedExtract(baseName, expected);
+    assertPackagedExtract(baseName, expected, false);
   }
 
   @Test
@@ -87,10 +87,11 @@ class PackagedJarOriginCheck {
         expected.length, expected.length, crc.getValue());
     Files.write(resource.resolveSibling(resource.getFileName() + ".chunks.properties"),
         manifest.getBytes(StandardCharsets.ISO_8859_1));
-    assertPackagedExtract(baseName, expected);
+    assertPackagedExtract(baseName, expected, true);
   }
 
-  private void assertPackagedExtract(String baseName, byte[] expected) throws Exception {
+  private void assertPackagedExtract(String baseName, byte[] expected,
+      boolean includeZstdJni) throws Exception {
     Path destination = tempDir.resolve("extracted").resolve(System.mapLibraryName(baseName));
     Files.createDirectories(destination.getParent());
 
@@ -98,8 +99,10 @@ class PackagedJarOriginCheck {
     if (!Files.isExecutable(java)) {
       java = java.resolveSibling("java.exe");
     }
-    String classPath = packagedJar() + File.pathSeparator + zstdJniJar()
-        + File.pathSeparator + tempDir;
+    String classPath = packagedJar() + File.pathSeparator + tempDir;
+    if (includeZstdJni) {
+      classPath += File.pathSeparator + zstdJniJar();
+    }
     Process process = new ProcessBuilder(
         java.toString(),
         "-cp", classPath,
